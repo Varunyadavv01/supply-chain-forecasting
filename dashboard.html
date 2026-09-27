@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Supply Chain Replenishment & Demand Forecasting Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0D1226; --panel:#161D3A; --line:#2A3358; --text:#F5F7FA;
+    --muted:#9AA6C8; --teal:#4FD1C5; --amber:#F2B84B; --red:#F26B6B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial, Helvetica, sans-serif;background:var(--bg);color:var(--text);padding:32px;}
+  h1{font-size:26px;margin:0 0 4px;}
+  p.sub{color:var(--muted);margin:0 0 28px;font-size:14px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:32px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;}
+  .kpi .val{font-size:26px;font-weight:700;}
+  .kpi .lbl{color:var(--muted);font-size:13px;margin-top:4px;}
+  .kpi.warn .val{color:var(--amber);}
+  .kpi.risk .val{color:var(--red);}
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;margin-bottom:20px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;}
+  .card h2{font-size:15px;margin:0 0 14px;color:var(--text);font-weight:600;}
+  canvas{max-height:280px;}
+  @media(max-width:800px){.grid,.grid2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+  <h1>Supply Chain Replenishment & Demand Forecasting</h1>
+  <p class="sub">9 dark stores · 30 SKUs · 90-day sales window · ABC classification, replenishment planning, FIFO expiry control</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="val">₹11.2Cr</div><div class="lbl">Network revenue (90d)</div></div>
+    <div class="kpi"><div class="val">676K</div><div class="lbl">Units sold</div></div>
+    <div class="kpi warn"><div class="val">149</div><div class="lbl">Store-SKU orders needed today</div></div>
+    <div class="kpi risk"><div class="val">21</div><div class="lbl">High stockout-risk pairs</div></div>
+    <div class="kpi risk"><div class="val">29</div><div class="lbl">Batches at urgent expiry risk</div></div>
+    <div class="kpi"><div class="val">8</div><div class="lbl">Slow-moving SKUs flagged</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h2>Network Revenue Trend (90 days)</h2><canvas id="trendChart"></canvas></div>
+    <div class="card"><h2>ABC Classification — Revenue Share</h2><canvas id="abcChart"></canvas></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h2>Revenue by Category</h2><canvas id="catChart"></canvas></div>
+    <div class="card"><h2>Revenue by Store</h2><canvas id="storeChart"></canvas></div>
+  </div>
+
+  <div class="grid2" style="margin-top:20px;">
+    <div class="card"><h2>Stockout Risk (store-SKU pairs)</h2><canvas id="stockoutChart"></canvas></div>
+    <div class="card"><h2>Batch Expiry Risk</h2><canvas id="expiryChart"></canvas></div>
+  </div>
+
+<script>
+const DATA = {"kpis": {"total_revenue": 111904969.0, "total_units": 676183, "n_stores": 9, "n_skus": 30, "orders_needed": 149, "total_reorder_units": 7405, "high_stockout_risk": 21, "urgent_expiry_batches": 29, "slow_movers": 8}, "daily_trend": {"labels": ["Apr 01", "Apr 06", "Apr 11", "Apr 16", "Apr 21", "Apr 26", "May 01", "May 06", "May 11", "May 16", "May 21", "May 26", "May 31", "Jun 05", "Jun 10", "Jun 15", "Jun 20", "Jun 25"], "values": [1151977.0, 1180614.0, 1418796.0, 1163987.0, 1163865.0, 1445506.0, 1176877.0, 1158839.0, 1148561.0, 1452860.0, 1162687.0, 1173405.0, 1447542.0, 1164203.0, 1147120.0, 1148756.0, 1466795.0, 1173000.0]}, "abc_dist": {"A": 10, "B": 7, "C": 13}, "abc_revenue": {"A": 77183110.0, "B": 22134616.0, "C": 12587243.0}, "category_labels": ["Personal Care", "Snacks", "Household", "Beverages", "Dairy"], "category_values": [40844276.0, 26277681.0, 19071379.0, 14668932.0, 11042702.0], "store_labels": ["Store_4", "Store_2", "Store_3", "Store_1", "Store_7", "Store_8", "Store_6", "Store_5", "Store_9"], "store_values": [15001050.0, 14210033.0, 14111896.0, 13162045.0, 13093632.0, 12217503.0, 10562089.0, 9940042.0, 9606679.0], "stockout_risk": {"Low": 249, "High": 21}, "expiry_risk": {"Urgent": 29, "Watch": 88, "OK": 397}};
+
+Chart.defaults.color = "#9AA6C8";
+Chart.defaults.borderColor = "#2A3358";
+const teal="#4FD1C5", amber="#F2B84B", red="#F26B6B", blue="#7C93F2", grey="#5C6A93";
+
+new Chart(document.getElementById('trendChart'), {
+  type:'line',
+  data:{labels:DATA.daily_trend.labels, datasets:[{label:'Revenue (₹)', data:DATA.daily_trend.values, borderColor:teal, backgroundColor:'rgba(79,209,197,0.15)', fill:true, tension:0.3}]},
+  options:{plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>(v/100000).toFixed(1)+'L'}}}}
+});
+
+new Chart(document.getElementById('abcChart'), {
+  type:'doughnut',
+  data:{labels:['A-class','B-class','C-class'], datasets:[{data:[DATA.abc_revenue.A, DATA.abc_revenue.B, DATA.abc_revenue.C], backgroundColor:[teal,amber,grey]}]},
+  options:{plugins:{legend:{position:'bottom'}}}
+});
+
+new Chart(document.getElementById('catChart'), {
+  type:'bar',
+  data:{labels:DATA.category_labels, datasets:[{label:'Revenue', data:DATA.category_values, backgroundColor:blue}]},
+  options:{plugins:{legend:{display:false}}, indexAxis:'y'}
+});
+
+new Chart(document.getElementById('storeChart'), {
+  type:'bar',
+  data:{labels:DATA.store_labels, datasets:[{label:'Revenue', data:DATA.store_values, backgroundColor:teal}]},
+  options:{plugins:{legend:{display:false}}}
+});
+
+new Chart(document.getElementById('stockoutChart'), {
+  type:'doughnut',
+  data:{labels:['Low risk','High risk'], datasets:[{data:[DATA.stockout_risk.Low, DATA.stockout_risk.High], backgroundColor:[teal,red]}]},
+  options:{plugins:{legend:{position:'bottom'}}}
+});
+
+new Chart(document.getElementById('expiryChart'), {
+  type:'doughnut',
+  data:{labels:['Urgent','Watch','OK'], datasets:[{data:[DATA.expiry_risk.Urgent, DATA.expiry_risk.Watch, DATA.expiry_risk.OK], backgroundColor:[red,amber,teal]}]},
+  options:{plugins:{legend:{position:'bottom'}}}
+});
+</script>
+</body>
+</html>
